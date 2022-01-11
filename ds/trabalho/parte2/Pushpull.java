@@ -13,11 +13,19 @@ import java.util.logging.Logger;
 import java.util.logging.FileHandler;
 import java.util.logging.SimpleFormatter;
 
+import java.io.File;  // Import the File class
+import java.io.FileNotFoundException;  // Import this class to handle errors
+import java.util.Random;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.util.concurrent.*;
 
 public class Pushpull {
     String host;
     Logger logger;
     String[] peersTable;
+    File wordList;
+
 
     public Pushpull(String hostname) {
         peersTable  = new String[255];
@@ -27,7 +35,8 @@ public class Pushpull {
             FileHandler handler = new FileHandler("./" + hostname + "_peer.log", true);
             logger.addHandler(handler);
             SimpleFormatter formatter = new SimpleFormatter();	
-            handler.setFormatter(formatter);	
+            handler.setFormatter(formatter);
+            generateFile();	
         } catch ( Exception e ) {
             e.printStackTrace();
         }
@@ -36,11 +45,25 @@ public class Pushpull {
     public static void main(String[] args) throws Exception {
         Pushpull pushpull = new Pushpull(args[0]);
         System.out.printf("new peer @ host=%s\n", args[0]);
-        new Thread(new Server(args[0], Integer.parseInt(args[1]), pushpull.logger, pushpull.peersTable)).start();
+        new Thread(new Server(args[0], Integer.parseInt(args[1]), pushpull.logger, pushpull.peersTable, pushpull.wordList)).start();
         //new Thread(new Server(args[0], 2222, pushpull.logger)).start();
-        new Thread(new Client(args[0], pushpull.logger, pushpull.peersTable)).start();
+        new Thread(new Client(args[0], pushpull.logger, pushpull.peersTable, pushpull.wordList)).start();
     }
 
+
+    public void generateFile(){
+        try {
+            wordList = new File(host+"_Words.txt");
+            if (wordList.createNewFile()) {
+                System.out.println("File created: " + wordList.getName());
+            } else {
+                System.out.println("File already exists.");
+            }
+        } catch (IOException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
+        }
+    }
 
 }
 
@@ -51,12 +74,14 @@ class Server implements Runnable{
     ServerSocket server;
     Logger       logger;
     String[]     peersTable;
+    File         wordList;
 
-    public Server(String host, int port, Logger logger, String[] peersTable) throws Exception {
+    public Server(String host, int port, Logger logger, String[] peersTable, File wordList) throws Exception {
         this.host   = host;
         this.port   = port;
         this.logger = logger;
         this.peersTable = peersTable;
+        this.wordList = wordList;
         server = new ServerSocket(port, 1, InetAddress.getByName(host));
     }
 
@@ -65,7 +90,13 @@ class Server implements Runnable{
     public void run() {
         try {
             logger.info("server: endpoint running at port " + port + " ...");
+
+            //Serviço para adicionar palavras aleatorias
+            ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+            executor.scheduleAtFixedRate(randomWords, 0, 3, TimeUnit.SECONDS);
+
             while(true) {
+
                 try {
                     Socket client = server.accept();
                     String clientAddress = client.getInetAddress().getHostAddress();
@@ -80,6 +111,44 @@ class Server implements Runnable{
         }
     }
 
+    
+    Runnable randomWords = new Runnable() {
+        public void run(){
+            String word = getRandomWordFromFile();
+            System.out.println(word + "---> foi a palavra escolhida");
+            try{
+                FileWriter fw = new FileWriter(wordList.getName(), true);
+                BufferedWriter bw = new BufferedWriter(fw);
+                bw.write(word);
+                bw.newLine();
+                bw.close();
+            } catch (IOException e) {
+                System.out.println("An error occurred.");
+                e.printStackTrace();
+            }
+        }    
+    };
+
+    public String getRandomWordFromFile(){
+        //29858 palavras
+        Random rand = new Random();
+        int randInt = rand.nextInt(29858);
+        int count = 0;
+        String chosenWord = "";
+        try {
+            File myObj = new File("todasPalavras.txt");
+            Scanner myReader = new Scanner(myObj);
+            while (count != randInt) {
+                chosenWord = myReader.nextLine();
+                count++;
+            }
+        myReader.close();
+        } catch (FileNotFoundException e) {
+            System.out.println("An error occurred.");
+            e.printStackTrace();
+        }
+        return chosenWord;
+    }
 
 }
 
@@ -176,18 +245,18 @@ class Connection implements Runnable{
     }
 }
 
-
-
 class Client implements Runnable{
     String  host;
     Logger  logger;
     Scanner scanner;
     String[] peersTable;
-    public Client(String host, Logger logger, String[] peersTable) throws Exception {
+    File wordList;
+    public Client(String host, Logger logger, String[] peersTable, File wordList) throws Exception {
         this.host    = host;
         this.logger  = logger; 
         this.scanner = new Scanner(System.in);
         this.peersTable = peersTable;
+        this.wordList = wordList;
     }
 
 
@@ -275,4 +344,3 @@ class Client implements Runnable{
     }
 
 }
-
