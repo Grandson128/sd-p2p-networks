@@ -19,17 +19,24 @@ import java.util.Random;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.util.concurrent.*;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 
 public class Pushpull {
     String host;
     Logger logger;
     String[] peersTable;
-    File wordList;
+    static String port;
+
+    List<String> peerWordsList;
 
 
     public Pushpull(String hostname) {
         peersTable  = new String[255];
         host   = hostname;
+        peerWordsList = new ArrayList<String>();
+
         logger = Logger.getLogger("logfile");
         try {
             FileHandler handler = new FileHandler("./" + hostname + "_peer.log", true);
@@ -43,27 +50,14 @@ public class Pushpull {
     }
     
     public static void main(String[] args) throws Exception {
+        port = args[1];
         Pushpull pushpull = new Pushpull(args[0]);
         System.out.printf("new peer @ host=%s\n", args[0]);
-        new Thread(new Server(args[0], Integer.parseInt(args[1]), pushpull.logger, pushpull.peersTable, pushpull.wordList)).start();
+        new Thread(new Server(args[0], Integer.parseInt(args[1]), pushpull.logger, pushpull.peersTable, pushpull.peerWordsList)).start();
         //new Thread(new Server(args[0], 2222, pushpull.logger)).start();
-        new Thread(new Client(args[0], pushpull.logger, pushpull.peersTable, pushpull.wordList)).start();
+        new Thread(new Client(args[0], pushpull.logger, pushpull.peersTable, pushpull.peerWordsList)).start();
     }
 
-
-    public void generateFile(){
-        try {
-            wordList = new File(host+"_Words.txt");
-            if (wordList.createNewFile()) {
-                System.out.println("File created: " + wordList.getName());
-            } else {
-                System.out.println("File already exists.");
-            }
-        } catch (IOException e) {
-            System.out.println("An error occurred.");
-            e.printStackTrace();
-        }
-    }
 
 }
 
@@ -74,14 +68,14 @@ class Server implements Runnable{
     ServerSocket server;
     Logger       logger;
     String[]     peersTable;
-    File         wordList;
+    List<String> peerWordsList;
 
-    public Server(String host, int port, Logger logger, String[] peersTable, File wordList) throws Exception {
+    public Server(String host, int port, Logger logger, String[] peersTable, List<String> peerWordsList) throws Exception {
         this.host   = host;
         this.port   = port;
         this.logger = logger;
         this.peersTable = peersTable;
-        this.wordList = wordList;
+        this.peerWordsList = peerWordsList;
         server = new ServerSocket(port, 1, InetAddress.getByName(host));
     }
 
@@ -116,16 +110,10 @@ class Server implements Runnable{
         public void run(){
             String word = getRandomWordFromFile();
             System.out.println(word + "---> foi a palavra escolhida");
-            try{
-                FileWriter fw = new FileWriter(wordList.getName(), true);
-                BufferedWriter bw = new BufferedWriter(fw);
-                bw.write(word);
-                bw.newLine();
-                bw.close();
-            } catch (IOException e) {
-                System.out.println("An error occurred.");
-                e.printStackTrace();
-            }
+
+            peerWordsList.add(word);
+            System.out.println("\nA Lista: " + peerWordsList.toString());
+
         }    
     };
 
@@ -250,13 +238,14 @@ class Client implements Runnable{
     Logger  logger;
     Scanner scanner;
     String[] peersTable;
-    File wordList;
-    public Client(String host, Logger logger, String[] peersTable, File wordList) throws Exception {
+    List<String> peerWordsList;
+
+    public Client(String host, Logger logger, String[] peersTable, List<String> peerWordsList) throws Exception {
         this.host    = host;
         this.logger  = logger; 
         this.scanner = new Scanner(System.in);
         this.peersTable = peersTable;
-        this.wordList = wordList;
+        this.peerWordsList = peerWordsList;
     }
 
 
