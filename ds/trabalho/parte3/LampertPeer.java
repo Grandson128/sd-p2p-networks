@@ -27,6 +27,7 @@ import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.OutputStream;
 
+import java.sql.Timestamp;
 
 class PeerHost{
     String hostName;
@@ -38,7 +39,9 @@ class PeerHost{
     }
 
     public void printPeerHost(Logger logger){
-        logger.info("server: hostname: " +hostName + " port: " + hostPort);
+        //logger.info("server: hostname: " +hostName + " port: " + hostPort);
+        System.out.println("server: hostname -> " +hostName + " ; port -> " + hostPort);
+
     }
 
     public boolean equals(PeerHost peer){
@@ -97,7 +100,6 @@ public class LampertPeer {
         new Thread(new Client(args[0], Integer.parseInt(args[1]), lampertPeer.logger, lampertPeer.peerList)).start();
     }
 
-
 }
 
 
@@ -126,7 +128,7 @@ class Server implements Runnable{
                 try {
                     Socket client = server.accept();
                     String clientAddress = client.getInetAddress().getHostAddress();
-                    logger.info("server: new connection from " + clientAddress);
+                    //logger.info("server: new connection from " + clientAddress);
                     new Thread(new Connection(clientAddress, port, client, logger,this.host, this.peerList)).start();
                 }catch(Exception e) {
                     e.printStackTrace();
@@ -196,6 +198,17 @@ class Connection implements Runnable{
                     resultMessages.add("ERROR");
                 }
 
+            }else{
+                String message = op;
+                String time = listOfMessages.get(1);
+                String peerHost = listOfMessages.get(2);
+                String peerPort = listOfMessages.get(3);
+
+                Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+
+                System.out.println("\nTime of arrival: "+ timestamp.toString());
+                System.out.println("Time from origin: "+time);
+                System.out.println("Message From("+peerHost+":"+peerPort+"): "+message);
             }
 
             //Send Result List
@@ -215,12 +228,14 @@ class Connection implements Runnable{
 
         if(!newPeer.inList(peerList)){
             peerList.add(newPeer);
-            logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
-            logger.info("Server: Current Peer Ip Table: ");
+            //logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
+            //logger.info("Server: Current Peer Ip Table: ");
+            System.out.println("Server: Current Peer Ip Table: ");
             printPeerHostList(logger);
             return 1;
         }else{
-            logger.info("Server: ERROR - Didn't register given peer, already exists");
+            //logger.info("Server: ERROR - Didn't register given peer, already exists");
+            System.out.println("Server: ERROR - Didn't register given peer, already exists");
             return 0;
         }
     }
@@ -252,7 +267,7 @@ class Client implements Runnable{
     @Override 
     public void run() {
         try {
-            logger.info("client: endpoint running ...\n");	
+            //logger.info("client: endpoint running ...\n");	
             /*
             * send messages such as:
             *   - register ip port
@@ -266,7 +281,6 @@ class Client implements Runnable{
                     
                     System.out.print("$ ");
                     String command = scanner.next();
-                    String server  = scanner.next();
                     
                     List<String> messages = new ArrayList<String>();
                     messages.add(command);
@@ -279,12 +293,21 @@ class Client implements Runnable{
                      * Prepare List of messages
                      */
                     if(command.equals("register")){
+                        String server  = scanner.next();
                         String port = scanner.next(); //Ask new peer port
                         messages.add(this.host);
                         messages.add(String.valueOf(this.port));
 
                         resultMessages = handleRegisterCommand(messages, server, port);
                         register(resultMessages, server, port, logger);
+
+                    }else{
+                        String chatMessage = command;
+                        chatMessage = chatMessage + scanner.nextLine();
+                        messages.clear();
+                        messages.add(chatMessage);
+                        //System.out.println("GOT :" + message);
+                        messageAll(messages, this.host, String.valueOf(this.port));
 
                     }
 
@@ -308,7 +331,7 @@ class Client implements Runnable{
             * make connection
             */
             Socket socket  = new Socket(InetAddress.getByName(server), Integer.parseInt(port));
-            logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
+            //logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
             
             // get the output stream from the socket.
             OutputStream outputStream = socket.getOutputStream();
@@ -340,16 +363,17 @@ class Client implements Runnable{
     }
 
 
-    public void messageAll(List<String> messages, String server, String command){
-        int flag = 0;
+    public void messageAll(List<String> messages, String server, String port){
+        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+        String holdTimeOfCreation = "";
+
         for(PeerHost peer : peerList){ 
-            flag = 1;
             try{
                 /* 
                 * make connection
                 */
                 Socket socket  = new Socket(InetAddress.getByName(peer.hostName), peer.hostPort);
-                logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
+                //logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
                 
                 // get the output stream from the socket.
                 OutputStream outputStream = socket.getOutputStream();
@@ -360,10 +384,18 @@ class Client implements Runnable{
                 InputStream inputStream = socket.getInputStream();
                 // create a DataInputStream so we can read data from it.
                 ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
+
+                //Add timestamp to message
+                
+                holdTimeOfCreation = timestamp.toString();
+                messages.add(timestamp.toString());
+                messages.add(server);
+                messages.add(port);
     
                 //Send Data
                 objectOutputStream.writeObject(messages);
-    
+                
+                
                 List<String> resultMessages = new ArrayList<String>();
     
                 try{            
@@ -371,16 +403,19 @@ class Client implements Runnable{
                 }catch(ClassNotFoundException e){ e.printStackTrace();}
                 
 
-                
-
-
                 socket.close();
 
             }catch(IOException e){
                 e.printStackTrace();
-            }   
+            }finally{
+
+            }
             
         }
+        
+        System.out.println("\nTime of arrival: "+ timestamp.toString());
+        System.out.println("Time from origin: "+holdTimeOfCreation);
+        System.out.println("Message From("+server+":"+port+"): "+messages.get(0));
     }
 
     /**
@@ -402,14 +437,16 @@ class Client implements Runnable{
 
                 if(!newPeer.inList(peerList)){
                     peerList.add(newPeer);
-                    logger.info("Client: added new peer --> Host: "+resultServerHost+" Port: "+resultServerPort);
-                    logger.info("Client: Current Peer Ip Table: ");
+                    //logger.info("Client: added new peer --> Host: "+resultServerHost+" Port: "+resultServerPort);
+                    //logger.info("Client: Current Peer Ip Table: ");
+                    System.out.println("Client: Current Peer Ip Table: ");
                     printPeerHostList(logger);
                 }else{
-                    logger.info("Client: ERROR - Didn't register given peer, already exists");
+                    // logger.info("Client: ERROR - Didn't register given peer, already exists");
+                    System.out.println("Client: ERROR - Didn't register given peer, already exists");
                 }
             }else{
-                logger.info("Client: ERROR - Didn't register peer");
+                //logger.info("Client: ERROR - Didn't register peer");
             }
         }        
     }
