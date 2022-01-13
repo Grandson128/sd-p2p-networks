@@ -1,4 +1,4 @@
-package ds.trabalho.parte2;
+//package ds.trabalho.parte2;
 
 
 import java.io.IOException;
@@ -29,17 +29,47 @@ import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.OutputStream;
 
+class PeerHost{
+    String hostName;
+    int hostPort;
+
+    public PeerHost(String hostName, int hostPort){
+        this.hostName = hostName;
+        this.hostPort = hostPort;
+    }
+
+    public void printPeerHost(Logger logger){
+        logger.info("server: hostname: " +hostName + " port: " + hostPort);
+    }
+    
+    public boolean equals(PeerHost peer){
+        if(peer.hostName.equals(this.hostName) && peer.hostPort == this.hostPort){
+            return true;
+        }
+        return false;
+    }
+
+    public boolean inList(List<PeerHost> peers){
+        for(PeerHost peer : peers){ 
+            if(peer.equals(this)){
+                return true;
+            }
+        }
+        return false;
+    }
+
+}
 public class Pushpull {
     String host;
     Logger logger;
-    String[] peersTable;
     static String port;
     List<String> peerWordsList;
+    List<PeerHost> peerList;
 
     public Pushpull(String hostname) {
-        peersTable  = new String[255];
         host   = hostname;
         peerWordsList = new ArrayList<String>();
+        peerList = new ArrayList<PeerHost>();
         logger = Logger.getLogger("logfile");
 
         try {
@@ -53,32 +83,29 @@ public class Pushpull {
     }
     
     public static void main(String[] args) throws Exception {
-        port = Integer.parseInt(args[1]);
-
         Pushpull pushpull = new Pushpull(args[0]);
         System.out.printf("new peer @ host=%s\n", args[0]);
-        new Thread(new Server(args[0], port, pushpull.logger, pushpull.peersTable, pushpull.peerWordsList)).start();
-        new Thread(new Client(args[0], pushpull.logger, pushpull.peersTable, pushpull.peerWordsList)).start();
+        new Thread(new Server(args[0], Integer.parseInt(args[1]), pushpull.logger, pushpull.peerList, pushpull.peerWordsList)).start();
+        new Thread(new Client(args[0], Integer.parseInt(args[1]), pushpull.logger, pushpull.peerList, pushpull.peerWordsList)).start();
     }
 
-
 }
-
 
 class Server implements Runnable{
     String       host;
     int          port;
     ServerSocket server;
     Logger       logger;
-    String[]     peersTable;
     List<String> peerWordsList;
+    List<PeerHost> peerList;
+
     final int secondsRandomWord = 15;
 
-    public Server(String host, int port, Logger logger, String[] peersTable, List<String> peerWordsList) throws Exception {
+    public Server(String host, int port, Logger logger, List<PeerHost> peerList, List<String> peerWordsList) throws Exception {
         this.host   = host;
         this.port   = port;
         this.logger = logger;
-        this.peersTable = peersTable;
+        this.peerList = peerList;
         this.peerWordsList = peerWordsList;
         server = new ServerSocket(port, 1, InetAddress.getByName(host));
     }
@@ -97,7 +124,7 @@ class Server implements Runnable{
                     Socket client = server.accept();
                     String clientAddress = client.getInetAddress().getHostAddress();
                     logger.info("server: new connection from " + clientAddress);
-                    new Thread(new Connection(clientAddress, client, logger, this.peersTable, this.host, this.peerWordsList)).start();
+                    new Thread(new Connection(clientAddress, client, logger, this.peerList, this.host, this.port, this.peerWordsList)).start();
                 }catch(Exception e) {
                     e.printStackTrace();
                 }    
@@ -154,17 +181,19 @@ class Connection implements Runnable{
     String clientAddress;
     Socket clientSocket;
     Logger logger;
-    String[] peersTable;
     String host;
     List<String> peerWordsList;
+    List<PeerHost> peerList;
+    int port;
 
-    public Connection(String clientAddress, Socket clientSocket, Logger logger, String[] peersTable, String host, List<String> peerWordsList) {
+    public Connection(String clientAddress, Socket clientSocket, Logger logger, List<PeerHost> peerList, String host, int port, List<String> peerWordsList) {
         this.clientAddress = clientAddress;
         this.clientSocket  = clientSocket;
         this.logger        = logger;
-        this.peersTable    = peersTable;
+        this.peerList    = peerList;
         this.host          = host;
         this.peerWordsList = peerWordsList;
+        this.port = port;
     }
 
     @Override
@@ -195,11 +224,20 @@ class Connection implements Runnable{
              */
 
             if(op.equals("register")){
-                register(clientAddress);
-                //List with register comman in head
-                resultMessages.add("register");
-                //List with server host name in body
-                resultMessages.add(this.host);
+                int clientPort = Integer.parseInt(listOfMessages.get(2));
+                //Register client peer
+                int regist = register(clientAddress, clientPort, logger);
+
+                if(regist == 1){
+                    //List with register comman in head
+                    resultMessages.add("register");
+                    //List with server host name and port in body
+                    resultMessages.add(this.host);
+                    resultMessages.add(String.valueOf(this.port));
+                }else{
+                    //List with register comman in head
+                    resultMessages.add("ERROR");
+                }
 
             }else if(op.equals("push")){
                 push(listOfMessages);
@@ -249,42 +287,146 @@ class Connection implements Runnable{
      * Add Client Host to table
      * @param targetPeerHost
      */
-    public void register(String targetPeerHost){
-        /**
-         * Uncoment for live demonstration
-         */
-        int counter = 0;
-        while(peersTable[counter] != null){
-            // if(peersTable[counter].equals(targetPeerHost)){
-            //     counter = -1;
-            //     break;
-            // }
-            counter++;
+    public int register(String targetPeerHost, int port, Logger logger){
+        PeerHost newPeer = new PeerHost(targetPeerHost, port);
+
+        if(!newPeer.inList(peerList)){
+            peerList.add(newPeer);
+            logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
+            logger.info("Server: Current Peer Ip Table: ");
+            printPeerHostList(logger);
+            return 1;
+        }else{
+            logger.info("Server: ERROR - Didn't register given peer, already exists");
+            return 0;
         }
-        // if(counter < 0){
-        //     System.out.println("No peer Added, host and server are the same\n");
-        // }else{
-            peersTable[counter] = targetPeerHost;
-            logger.info("server: Added new peer --> " + peersTable[counter]);
-        // }
     }
+
+    public void printPeerHostList(Logger logger){
+        peerList.forEach((host) -> {
+            host.printPeerHost(logger);
+        });
+    }
+
 }
 
 class Client implements Runnable{
     String  host;
     Logger  logger;
     Scanner scanner;
-    String[] peersTable;
     List<String> peerWordsList;
+    List<PeerHost> peerList;
+    int port;
 
-    public Client(String host, Logger logger, String[] peersTable, List<String> peerWordsList) throws Exception {
+    public Client(String host, int port, Logger logger, List<PeerHost> peerList, List<String> peerWordsList) throws Exception {
         this.host    = host;
         this.logger  = logger; 
         this.scanner = new Scanner(System.in);
-        this.peersTable = peersTable;
+        this.peerList = peerList;
         this.peerWordsList = peerWordsList;
+        this.port = port;
     }
 
+    public List<String> handleRegisterCommand(List<String> messages, String server, String port){
+
+        try{
+            /* 
+            * make connection
+            */
+            Socket socket  = new Socket(InetAddress.getByName(server), Integer.parseInt(port));
+            logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
+            
+            // get the output stream from the socket.
+            OutputStream outputStream = socket.getOutputStream();
+            // create an object output stream from the output stream so we can send an object through it
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
+
+            // get the input stream from the connected socket
+            InputStream inputStream = socket.getInputStream();
+            // create a DataInputStream so we can read data from it.
+            ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
+
+            //Send Data
+            objectOutputStream.writeObject(messages);
+
+            List<String> resultMessages = new ArrayList<String>();
+
+            try{            
+                resultMessages = (List<String>)objectInputStream.readObject();
+            }catch(ClassNotFoundException e){ e.printStackTrace();}
+
+            socket.close();
+
+            return resultMessages;
+        }catch(IOException e){
+            e.printStackTrace();
+        }   
+
+        return null;
+    }
+
+    public void handleCommands(List<String> messages, String server, String command){
+        int flag = 0;
+        for(PeerHost peer : peerList){ 
+            if(peer.hostName.equals(server)){
+                flag = 1;
+                try{
+                    /* 
+                    * make connection
+                    */
+                    Socket socket  = new Socket(InetAddress.getByName(peer.hostName), peer.hostPort);
+                    logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
+                    
+                    // get the output stream from the socket.
+                    OutputStream outputStream = socket.getOutputStream();
+                    // create an object output stream from the output stream so we can send an object through it
+                    ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
+        
+                    // get the input stream from the connected socket
+                    InputStream inputStream = socket.getInputStream();
+                    // create a DataInputStream so we can read data from it.
+                    ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
+        
+                    //Send Data
+                    objectOutputStream.writeObject(messages);
+        
+                    List<String> resultMessages = new ArrayList<String>();
+        
+                    try{            
+                        resultMessages = (List<String>)objectInputStream.readObject();
+                    }catch(ClassNotFoundException e){ e.printStackTrace();}
+                    
+
+                    if(command.equals("push")){
+                        if(resultMessages.get(0).equals("YES")){
+                            System.out.println("Word list pushed with success");
+                        }else{
+                            System.out.println("Word list push FAILED");
+                        }
+                        
+                    } else if(command.equals("pull")){
+                        pull(resultMessages);
+
+                    }else if(command.equals("pushpull")){
+                        pull(resultMessages);
+                    }
+
+
+                    socket.close();
+
+                }catch(IOException e){
+                    e.printStackTrace();
+                }   
+            }else{
+                //System.out.println("Error: Host not in table");
+            }
+        }
+
+        if(flag == 0){
+            System.out.println("Error: Host not in table");
+        }
+
+    }
 
     @Override 
     public void run() {
@@ -303,58 +445,39 @@ class Client implements Runnable{
                     System.out.print("$ ");
                     String command = scanner.next();
                     String server  = scanner.next();
-                    String port    = scanner.next();
-
-                    /* 
-                    * make connection
-                    */
-                    Socket socket  = new Socket(InetAddress.getByName(server), Integer.parseInt(port));
-                    logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
                     
-                    // get the output stream from the socket.
-                    OutputStream outputStream = socket.getOutputStream();
-                    // create an object output stream from the output stream so we can send an object through it
-                    ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
-
-                    // get the input stream from the connected socket
-                    InputStream inputStream = socket.getInputStream();
-                    // create a DataInputStream so we can read data from it.
-                    ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
-
-
                     List<String> messages = new ArrayList<String>();
                     messages.add(command);
-                    
-                    if(command.equals("push") || command.equals("pushpull")){
-                        messages.addAll(peerWordsList);
-                    }
 
-                    //Send Data
-                    objectOutputStream.writeObject(messages);
-
-                    //Result from server
+                    //List to hold server reply
                     List<String> resultMessages = new ArrayList<String>();
-                    resultMessages = (List<String>)objectInputStream.readObject();
-                    
+
+    
+                    /**
+                     * Prepare List of messages
+                     */
                     if(command.equals("register")){
-                        register(resultMessages, server);
+                        String port = scanner.next(); //Ask new peer port
+                        messages.add(this.host);
+                        messages.add(String.valueOf(this.port));
+
+                        resultMessages = handleRegisterCommand(messages, server, port);
+                        register(resultMessages, server, port, logger);
 
                     }else if(command.equals("push")){
-                        logger.info("client: Push done\n");	
+                        messages.addAll(peerWordsList);
+                        handleCommands(messages, server, "push");
 
-                    }else if(command.equals("pull")){
-                        pull(resultMessages);
+                    } else if(command.equals("pull")){
+                        handleCommands(messages, server, "pull");
 
                     }else if(command.equals("pushpull")){
-                        pull(resultMessages);
+                        handleCommands(messages, server, "pushpull");
 
                     }else{
                         System.out.println("Wrong command");
-                        socket.close();
                     }
 
-
-                    socket.close();
                 } catch(Exception e) {
                     //e.printStackTrace();
                     System.out.println("Wrong Host/Port");
@@ -380,24 +503,41 @@ class Client implements Runnable{
         logger.info("client: Current Word List --> " + peerWordsList.toString());
     }
 
-
     /**
      * Add server host to the peer table
      * @param result
      * @param server
      */
-    public void register(List<String> result, String server){
+    public void register(List<String> result, String server, String port, Logger logger){
         String resultCommand = result.get(0);
-        String resultServer = result.get(1);
 
-        if (resultCommand.equals("register") && resultServer.equals(server)){
-            int counter = 0;
-            while(peersTable[counter] != null){
-                counter++;
+        if(!resultCommand.equals("register")){
+            logger.info("Client: ERROR - Didn't register peer");
+        }else{
+            String resultServerHost = result.get(1);
+            String resultServerPort = result.get(2);
+
+            if (resultServerHost.equals(server) && resultServerPort.equals(port)){
+                PeerHost newPeer = new PeerHost(resultServerHost, Integer.parseInt(resultServerPort));
+
+                if(!newPeer.inList(peerList)){
+                    peerList.add(newPeer);
+                    logger.info("Client: added new peer --> Host: "+resultServerHost+" Port: "+resultServerPort);
+                    logger.info("Client: Current Peer Ip Table: ");
+                    printPeerHostList(logger);
+                }else{
+                    logger.info("Client: ERROR - Didn't register given peer, already exists");
+                }
+            }else{
+                logger.info("Client: ERROR - Didn't register peer");
             }
-            peersTable[counter] = server;
-            logger.info("Added peer ->" + peersTable[counter]);
-        } 
+        }        
+    }
+
+    public void printPeerHostList(Logger logger){
+        peerList.forEach((host) -> {
+            host.printPeerHost(logger);
+        });
     }
 
 }
