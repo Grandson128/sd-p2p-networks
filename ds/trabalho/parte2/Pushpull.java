@@ -1,4 +1,4 @@
-package ds.trabalho.parte2;
+// package ds.trabalho.parte2;
 
 
 import java.io.IOException;
@@ -43,9 +43,17 @@ class PeerHost{
     }
     
     public boolean equals(PeerHost peer){
-        if(peer.hostName.equals(this.hostName) && peer.hostPort == this.hostPort){
-            return true;
+        try{
+            if(InetAddress.getByName(peer.hostName).equals(InetAddress.getByName(this.hostName)) && peer.hostPort == this.hostPort){
+                return true;
+            }
+            //return false;
+        }catch(UnknownHostException e){
+            e.printStackTrace();
+        }finally{
+            
         }
+
         return false;
     }
 
@@ -432,14 +440,17 @@ class Client implements Runnable{
     public void run() {
         try {
             logger.info("client: endpoint running ...\n");	
-            /*
+            /**
+             * push, pull and pushpull can't be done without registering a peer first
             * send messages such as:
             *   - register ip port
-            *   - push ip port
-            *   - pull ip port
-            *   - pushpull ip port
+            *   - push ip 
+            *   - pull ip 
+            *   - pushpull ip 
             * ip is the address of the server, port is the port where server is listening
             */
+     
+        
             while (true) {
                 try {
                     System.out.print("$ ");
