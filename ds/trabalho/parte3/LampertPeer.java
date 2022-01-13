@@ -28,7 +28,7 @@ import java.io.ObjectInputStream;
 import java.io.OutputStream;
 
 
-public class PeerHost{
+class PeerHost{
     String hostName;
     int hostPort;
 
@@ -36,6 +36,11 @@ public class PeerHost{
         this.hostName = hostName;
         this.hostPort = hostPort;
     }
+
+    public void printPeerHost(){
+        System.out.println("hostname: " +hostName + " port: " + hostPort);
+    }
+
 }
 
 public class LampertPeer {
@@ -44,7 +49,7 @@ public class LampertPeer {
     static String port;
     List<PeerHost> peerList;
 
-    public Lampert(String hostname) {
+    public LampertPeer(String hostname) {
         host   = hostname;
         logger = Logger.getLogger("logfile");
         peerList = new ArrayList<PeerHost>();
@@ -60,11 +65,11 @@ public class LampertPeer {
     }
     
     public static void main(String[] args) throws Exception {
-        port = Integer.parseInt(args[1]);
+        // port = Integer.parseInt(args[1]);
 
-        LampertPeer lampertPeer = new PampertPeer(args[0]);
+        LampertPeer lampertPeer = new LampertPeer(args[0]);
         System.out.printf("new peer @ host=%s\n", args[0]);
-        new Thread(new Server(args[0], port, lampertPeer.logger, lampertPeer.peerList)).start();
+        new Thread(new Server(args[0], Integer.parseInt(args[1]), lampertPeer.logger, lampertPeer.peerList)).start();
         new Thread(new Client(args[0], lampertPeer.logger, lampertPeer.peerList)).start();
     }
 
@@ -149,7 +154,7 @@ class Connection implements Runnable{
             String op = listOfMessages.get(0);
             List<String> resultMessages = new ArrayList<String>();
 
-            
+
 
 
             //Send Result List
@@ -176,6 +181,13 @@ class Client implements Runnable{
     }
 
 
+    public void printPeerHostList(){
+        peerList.forEach((host) -> {
+            host.printPeerHost();
+        });
+    }
+
+
     @Override 
     public void run() {
         try {
@@ -192,29 +204,49 @@ class Client implements Runnable{
                 try {
                     System.out.print("$ ");
                     String command = scanner.next();
-                    String server  = scanner.next();
-                    String port    = scanner.next();
-
-                    /* 
-                    * make connection
-                    */
-                    Socket socket  = new Socket(InetAddress.getByName(server), Integer.parseInt(port));
-                    logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
                     
-                    // get the output stream from the socket.
-                    OutputStream outputStream = socket.getOutputStream();
-                    // create an object output stream from the output stream so we can send an object through it
-                    ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
-
-                    // get the input stream from the connected socket
-                    InputStream inputStream = socket.getInputStream();
-                    // create a DataInputStream so we can read data from it.
-                    ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
 
 
+                    /**
+                     * Register Peers
+                     */
 
 
-                    socket.close();
+                    if(command.equals("register")){
+                        String server  = scanner.next();
+                        String port    = scanner.next();
+                        PeerHost newPeer = new PeerHost(server, Integer.parseInt(port));
+                        peerList.add(newPeer);
+
+                        System.out.println("Client: New Peer added, List: \n");
+                        printPeerHostList();
+
+                    }else{
+
+                        String server  = scanner.next();
+                        String port    = scanner.next();
+
+                        /* 
+                        * make connection
+                        */
+                        Socket socket  = new Socket(InetAddress.getByName(server), Integer.parseInt(port));
+                        logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
+                        
+                        // get the output stream from the socket.
+                        OutputStream outputStream = socket.getOutputStream();
+                        // create an object output stream from the output stream so we can send an object through it
+                        ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
+
+                        // get the input stream from the connected socket
+                        InputStream inputStream = socket.getInputStream();
+                        // create a DataInputStream so we can read data from it.
+                        ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
+
+
+
+
+                        socket.close();
+                    }
                 } catch(Exception e) {
                     //e.printStackTrace();
                     System.out.println("Wrong Host/Port");
