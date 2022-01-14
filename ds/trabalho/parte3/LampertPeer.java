@@ -335,6 +335,10 @@ class Connection implements Runnable{
                 e.printStackTrace();
             }finally{}
         }
+
+        //Add time of arrival to own bleat
+        bleat.add(bleatTime);
+
     }
 
     public boolean allPeerExistInMessageQueue(PriorityQueue<List<String>> messageQueue){
@@ -616,7 +620,7 @@ class Client implements Runnable{
 
                 //Send Data
                 objectOutputStream.writeObject(messagesToSend);
-
+                
                 socket.close();
 
             }catch(IOException e){
@@ -625,7 +629,10 @@ class Client implements Runnable{
 
             }
             
-        }
+        }   
+
+        //Add time of arrival to own message
+        messages.add(timestamp.toString());
 
         //displayMessage(messageQueue);
     }
