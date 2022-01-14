@@ -312,7 +312,7 @@ class Connection implements Runnable{
         messageQueue.add(bleat);
 
         for(PeerHost peer : this.peerList){ 
-            System.out.println(this.port+"sent bleat to: "+peer.hostPort);
+            System.out.println(this.host+" :sent bleat to: "+peer.host);
             try{
                 /**
                  * create bleat
@@ -394,9 +394,9 @@ class Connection implements Runnable{
         //System.out.println("List added to queue "+ messages.toString());
         //timestamp.setTime(timestamp.getTime()+1000);
 
-        System.out.println("\n---------server before PRIORITY QUEUE----------");
-        printPriorityQueue(messageQueue);
-        System.out.println("\n---------PRIORITY QUEUE----------\n");
+        // System.out.println("\n---------server before PRIORITY QUEUE----------");
+        // printPriorityQueue(messageQueue);
+        // System.out.println("\n---------PRIORITY QUEUE----------\n");
 
         while(allPeerExistInMessageQueue(messageQueue)){
             List<String> auxList = (List<String>)messageQueue.poll();
@@ -620,7 +620,7 @@ class Client implements Runnable{
 
                 //Send Data
                 objectOutputStream.writeObject(messagesToSend);
-                
+
                 socket.close();
 
             }catch(IOException e){
