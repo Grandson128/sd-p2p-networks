@@ -312,7 +312,7 @@ class Connection implements Runnable{
         messageQueue.add(bleat);
 
         for(PeerHost peer : this.peerList){ 
-            System.out.println(this.host+" :sent bleat to: "+peer.host);
+            System.out.println(this.host+" :sent bleat to: "+peer.hostName);
             try{
                 /**
                  * create bleat
