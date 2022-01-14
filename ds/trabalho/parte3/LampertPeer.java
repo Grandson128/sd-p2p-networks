@@ -431,12 +431,22 @@ class Connection implements Runnable{
     public int register(String targetPeerHost, int port, Logger logger){
         PeerHost newPeer = new PeerHost(targetPeerHost, port);
 
+        PeerHost thisPeer = new PeerHost(this.host, this.port);
+
+
         System.out.println("Server: Peer to add: "+targetPeerHost+" port: "+port);
         System.out.println("Server: Host: "+this.host+" Port: "+this.port);
         
         System.out.println("Peer List size: "+peerList.size());
 
-        if(!newPeer.inList(peerList) && !newPeer.hostName.equals(this.host) && newPeer.hostPort != this.port){
+        if(!newPeer.inList(peerList) && newPeer.equals(thisPeer) && newPeer.hostPort != this.port){
+            peerList.add(newPeer);
+            //logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
+            //logger.info("Server: Current Peer Ip Table: ");
+            System.out.println("Server: Current Peer Ip Table: ");
+            printPeerHostList(logger);
+            return 1;
+        }else if(!newPeer.inList(peerList) && !newPeer.equals(thisPeer) && newPeer.hostPort == this.port){
             peerList.add(newPeer);
             //logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
             //logger.info("Server: Current Peer Ip Table: ");
