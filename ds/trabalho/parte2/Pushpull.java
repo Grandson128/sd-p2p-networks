@@ -39,7 +39,8 @@ class PeerHost{
     }
 
     public void printPeerHost(Logger logger){
-        logger.info("server: hostname: " +hostName + " port: " + hostPort);
+        //logger.info("server: hostname: " +hostName + " port: " + hostPort);
+        System.out.println("server: hostname -> " +hostName + " ; port -> " + hostPort);
     }
     
     public boolean equals(PeerHost peer){
@@ -131,7 +132,7 @@ class Server implements Runnable{
                 try {
                     Socket client = server.accept();
                     String clientAddress = client.getInetAddress().getHostAddress();
-                    logger.info("server: new connection from " + clientAddress);
+                    //logger.info("server: new connection from " + clientAddress);
                     new Thread(new Connection(clientAddress, client, logger, this.peerList, this.host, this.port, this.peerWordsList)).start();
                 }catch(Exception e) {
                     e.printStackTrace();
@@ -152,8 +153,10 @@ class Server implements Runnable{
             if(!peerWordsList.contains(word)){
                 peerWordsList.add(word);
             }
-            logger.info("server: New Random Word --> " + word);
-            logger.info("server: Current List --> " + peerWordsList.toString());
+            //logger.info("server: New Random Word --> " + word);
+            //logger.info("server: Current List --> " + peerWordsList.toString());
+            System.out.println("server: Current List --> " + peerWordsList.toString());
+
         }    
     };
     
@@ -262,7 +265,8 @@ class Connection implements Runnable{
                 resultMessages.addAll(peerWordsList);
 
             }else{
-                logger.info("server: Wrong Command --> " + op);
+                //logger.info("server: Wrong Command --> " + op);
+                System.out.println("server: Wrong Command --> " + op);
                 clientSocket.close();
             }
 
@@ -285,10 +289,11 @@ class Connection implements Runnable{
         result.forEach((word) -> {
             if(!peerWordsList.contains(word)){
                 peerWordsList.add(word);
-                logger.info("server: Added Word --> " + word);
+                //logger.info("server: Added Word --> " + word);
             }
         });
-        logger.info("server: Current Word List --> " + peerWordsList.toString());
+        //logger.info("server: Current Word List --> " + peerWordsList.toString());
+        System.out.println("server: Updated Word List --> " + peerWordsList.toString());
     }
 
     /**
@@ -300,8 +305,9 @@ class Connection implements Runnable{
 
         if(!newPeer.inList(peerList)){
             peerList.add(newPeer);
-            logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
-            logger.info("Server: Current Peer Ip Table: ");
+            // logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
+            // logger.info("Server: Current Peer Ip Table: ");
+            System.out.println("Server: Current Peer Ip Table: ");
             printPeerHostList(logger);
             return 1;
         }else{
@@ -342,7 +348,7 @@ class Client implements Runnable{
             * make connection
             */
             Socket socket  = new Socket(InetAddress.getByName(server), Integer.parseInt(port));
-            logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
+            //logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
             
             // get the output stream from the socket.
             OutputStream outputStream = socket.getOutputStream();
@@ -383,7 +389,7 @@ class Client implements Runnable{
                     * make connection
                     */
                     Socket socket  = new Socket(InetAddress.getByName(peer.hostName), peer.hostPort);
-                    logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
+                    //logger.info("client: connected to server " + socket.getInetAddress() + "[port = " + socket.getPort() + "]");
                     
                     // get the output stream from the socket.
                     OutputStream outputStream = socket.getOutputStream();
@@ -508,10 +514,11 @@ class Client implements Runnable{
         result.forEach((word) -> {
             if(!peerWordsList.contains(word)){
                 peerWordsList.add(word);
-                logger.info("client: Added Word --> " + word);	
+                //logger.info("client: Added Word --> " + word);	
             }
         });
-        logger.info("client: Current Word List --> " + peerWordsList.toString());
+        //logger.info("client: Current Word List --> " + peerWordsList.toString());
+        System.out.println("client: Updated Word List --> " + peerWordsList.toString());
     }
 
     /**
@@ -533,9 +540,11 @@ class Client implements Runnable{
 
                 if(!newPeer.inList(peerList)){
                     peerList.add(newPeer);
-                    logger.info("Client: added new peer --> Host: "+resultServerHost+" Port: "+resultServerPort);
-                    logger.info("Client: Current Peer Ip Table: ");
+                    //logger.info("Client: added new peer --> Host: "+resultServerHost+" Port: "+resultServerPort);
+                    //logger.info("Client: Current Peer Ip Table: ");
+                    System.out.println("Client: Current Peer Ip Table: ");
                     printPeerHostList(logger);
+                    
                 }else{
                     logger.info("Client: ERROR - Didn't register given peer, already exists");
                 }
