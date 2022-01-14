@@ -228,7 +228,7 @@ class Connection implements Runnable{
             if(op.equals("register")){
                 int clientPort = Integer.parseInt(listOfMessages.get(2));
                 //Register client peer
-                int regist = register(clientAddress, clientPort, logger);
+                int regist = register(listOfMessages.get(1), clientPort, logger);
 
                 if(regist == 1){
                     //List with register comman in head
@@ -422,6 +422,10 @@ class Connection implements Runnable{
      */
     public int register(String targetPeerHost, int port, Logger logger){
         PeerHost newPeer = new PeerHost(targetPeerHost, port);
+
+        System.out.println("Server: Peer to add: "+targetPeerHost+" port: "+port);
+        System.out.println("Server: Host: "+targetPeerHost+" Port: "+port);
+
 
         if(!newPeer.inList(peerList) && !newPeer.hostName.equals(this.host) && newPeer.hostPort != this.port){
             peerList.add(newPeer);
