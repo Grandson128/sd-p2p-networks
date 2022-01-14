@@ -52,6 +52,14 @@ class PeerHost{
     public boolean equals(PeerHost peer){
         try{
             if(InetAddress.getByName(peer.hostName).equals(InetAddress.getByName(this.hostName)) && peer.hostPort == this.hostPort){
+                
+                System.out.println("Foreign Peer host address: "+InetAddress.getByName(peer.hostName).toString());
+                System.out.println("This Peer host address: "+InetAddress.getByName(this.hostName).toString());
+
+                System.out.println("Foreign Peer host port: "+peer.hostPort);
+                System.out.println("This Peer host port: "+this.hostPort);
+                
+                
                 return true;
             }
             //return false;
@@ -425,7 +433,8 @@ class Connection implements Runnable{
 
         System.out.println("Server: Peer to add: "+targetPeerHost+" port: "+port);
         System.out.println("Server: Host: "+this.host+" Port: "+this.port);
-
+        
+        System.out.println("Peer List size: "+peerList.size());
 
         if(!newPeer.inList(peerList) && !newPeer.hostName.equals(this.host) && newPeer.hostPort != this.port){
             peerList.add(newPeer);
