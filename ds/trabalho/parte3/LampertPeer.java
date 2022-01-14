@@ -26,8 +26,13 @@ import java.util.Collections;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.OutputStream;
-
+import java.sql.Time;
 import java.sql.Timestamp;
+import java.util.Comparator;
+import java.util.PriorityQueue;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 class PeerHost{
     String hostName;
@@ -70,16 +75,49 @@ class PeerHost{
 
 }
 
+
+class QueueComparator implements Comparator<List<String>>{
+
+    public int compare(List<String> list1, List<String> list2){
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss.SSS");
+        Date parsedTimeList1 = null;
+        Date parsedTimeList2 = null;
+
+        try{
+            parsedTimeList1 = dateFormat.parse(list1.get(1));
+            parsedTimeList2 = dateFormat.parse(list2.get(1));
+        }catch(Exception e){
+            e.printStackTrace();
+        }finally{
+
+        }
+
+        Timestamp timeList1 = new Timestamp(parsedTimeList1.getTime());
+        Timestamp timeList2 = new Timestamp(parsedTimeList2.getTime());
+
+        if(timeList1.before(timeList2)){
+            return -1;
+        }else if(timeList1.after(timeList2)){
+            return 1;
+        }
+
+        return 0;
+    }
+
+}
+
 public class LampertPeer {
     String host;
     Logger logger;
     static String port;
     List<PeerHost> peerList;
+    PriorityQueue<List<String>> messageQueue;
 
     public LampertPeer(String hostname) {
         host   = hostname;
         logger = Logger.getLogger("logfile");
         peerList = new ArrayList<PeerHost>();
+        messageQueue = new PriorityQueue<List<String>>(new QueueComparator());
 
         try {
             FileHandler handler = new FileHandler("./" + hostname + "_peer.log", true);
@@ -96,8 +134,8 @@ public class LampertPeer {
 
         LampertPeer lampertPeer = new LampertPeer(args[0]);
         System.out.printf("new peer @ host=%s\n", args[0]);
-        new Thread(new Server(args[0], Integer.parseInt(args[1]), lampertPeer.logger, lampertPeer.peerList)).start();
-        new Thread(new Client(args[0], Integer.parseInt(args[1]), lampertPeer.logger, lampertPeer.peerList)).start();
+        new Thread(new Server(args[0], Integer.parseInt(args[1]), lampertPeer.logger, lampertPeer.peerList, lampertPeer.messageQueue)).start();
+        new Thread(new Client(args[0], Integer.parseInt(args[1]), lampertPeer.logger, lampertPeer.peerList, lampertPeer.messageQueue)).start();
     }
 
 }
@@ -110,12 +148,15 @@ class Server implements Runnable{
     Logger       logger;
     List<PeerHost> peerList;
     final int secondsRandomWord = 15;
+    PriorityQueue<List<String>> messageQueue;
 
-    public Server(String host, int port, Logger logger, List<PeerHost> peerList) throws Exception {
+
+    public Server(String host, int port, Logger logger, List<PeerHost> peerList, PriorityQueue<List<String>> messageQueue) throws Exception {
         this.host   = host;
         this.port   = port;
         this.logger = logger;
         this.peerList = peerList;
+        this.messageQueue = messageQueue;
         server = new ServerSocket(port, 1, InetAddress.getByName(host));
     }
 
@@ -129,7 +170,7 @@ class Server implements Runnable{
                     Socket client = server.accept();
                     String clientAddress = client.getInetAddress().getHostAddress();
                     //logger.info("server: new connection from " + clientAddress);
-                    new Thread(new Connection(clientAddress, port, client, logger,this.host, this.peerList)).start();
+                    new Thread(new Connection(clientAddress, port, client, logger,this.host, this.peerList, this.messageQueue)).start();
                 }catch(Exception e) {
                     e.printStackTrace();
                 }    
@@ -149,14 +190,16 @@ class Connection implements Runnable{
     String host;
     int port;
     List<PeerHost> peerList;
+    PriorityQueue<List<String>> messageQueue;
 
-    public Connection(String clientAddress, int port, Socket clientSocket, Logger logger, String host, List<PeerHost> peerList) {
+    public Connection(String clientAddress, int port, Socket clientSocket, Logger logger, String host, List<PeerHost> peerList, PriorityQueue<List<String>> messageQueue) {
         this.clientAddress = clientAddress;
         this.clientSocket  = clientSocket;
         this.logger        = logger;
         this.host          = host;
         this.peerList = peerList;
         this.port = port;
+        this.messageQueue = messageQueue;
     }
 
     @Override
@@ -198,25 +241,196 @@ class Connection implements Runnable{
                     resultMessages.add("ERROR");
                 }
 
+                //Send Result List
+                objectOutputStream.writeObject(resultMessages);
+                clientSocket.close();
+
             }else{
-                String message = op;
-                String time = listOfMessages.get(1);
-                String peerHost = listOfMessages.get(2);
-                String peerPort = listOfMessages.get(3);
 
+                /**
+                 * Lamper Clock
+                 */
+                Timestamp bleatTime = null;
                 Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+                Timestamp originTime = stringToTimestamp(listOfMessages.get(1));
+                
+                if(timestamp.after(originTime)){
+                    bleatTime=timestamp;
+                    bleatTime.setTime(bleatTime.getTime()+1000);
+                }else{
+                    bleatTime=originTime;
+                    bleatTime.setTime(bleatTime.getTime()+1000);
+                }
 
-                System.out.println("\nTime of arrival: "+ timestamp.toString());
+                /**
+                 * Send Bleats
+                 */
+                if(!listOfMessages.get(0).equals("bleat")){
+                    for(PeerHost peer: peerList){
+                        sendBleat(peer.hostName, String.valueOf(peer.hostPort), bleatTime.toString());
+                    }
+                }else{
+                    System.out.println("Got bleat from: "+listOfMessages.get(3));
+                }
+                
+                //Add time of arrival
+                listOfMessages.add(bleatTime.toString());
+
+                //Add message to priority queue
+                messageQueue.add(listOfMessages);
+
+                //Handle message order
+                displayMessage(messageQueue);
+                
+            }
+
+            
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public Timestamp stringToTimestamp(String time){
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss.SSS");
+        Date parsedTime= null;
+    
+        try{
+            parsedTime = dateFormat.parse(time);
+        }catch(Exception e){
+            e.printStackTrace();
+        }finally{
+
+        }
+        Timestamp goodTime = new Timestamp(parsedTime.getTime());
+        return goodTime;
+    }
+
+    public void sendBleat(String server, String port, String bleatTime){
+        List<String> bleat = new ArrayList<String>();
+        bleat.add("bleat");
+        bleat.add(bleatTime);
+        bleat.add(this.host);
+        bleat.add(String.valueOf(this.port));
+
+        //Add own bleat
+        messageQueue.add(bleat);
+
+        for(PeerHost peer : peerList){ 
+            try{
+                /* 
+                * make connection
+                */
+                Socket socket  = new Socket(InetAddress.getByName(peer.hostName), peer.hostPort);
+                // get the output stream from the socket.
+                OutputStream outputStream = socket.getOutputStream();
+                // create an object output stream from the output stream so we can send an object through it
+                ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
+                //Send Bleat
+                objectOutputStream.writeObject(bleat);
+                socket.close();
+            }catch(IOException e){
+                e.printStackTrace();
+            }finally{}
+        }
+    }
+
+    public boolean allPeerExistInMessageQueue(PriorityQueue<List<String>> messageQueue){
+        int nPeersCounter=0;
+        int totalPeers = peerList.size()+1;
+        PriorityQueue auxQueue = new PriorityQueue<List<String>>(new QueueComparator());
+        auxQueue.addAll(messageQueue);
+        List<PeerHost> peersVisited = new ArrayList<PeerHost>();
+
+
+        for(PeerHost peer : peerList){
+            // System.out.println("FROM PEER LIST: "+peer.hostPort+ " "+peer.hostName);
+            while(!auxQueue.isEmpty()){
+                List<String> auxList = (List<String>)auxQueue.poll();
+                PeerHost auxPeer = new PeerHost(auxList.get(2), Integer.parseInt(auxList.get(3)));
+
+                // System.out.println("SPAM from list: "+auxPeer.hostPort+ " "+peer.hostName);
+
+                if(peer.equals(auxPeer) && !peer.inList(peersVisited)){
+                    // System.out.println("EY FOUND THIS GUY: "+auxPeer.hostPort+ " "+peer.hostName);
+                    peersVisited.add(auxPeer);
+                    nPeersCounter++;
+                    break;
+                }
+            }
+        }
+
+
+        /**
+         * Search for current peer bleat/message
+         */
+        auxQueue.clear();
+        auxQueue.addAll(messageQueue);
+
+        while(!auxQueue.isEmpty()){
+            List<String> auxList = (List<String>)auxQueue.poll();
+            PeerHost auxPeer = new PeerHost(auxList.get(2), Integer.parseInt(auxList.get(3)));
+            if(auxPeer.hostName.equals(this.host) && auxPeer.hostPort == this.port && !auxPeer.inList(peersVisited)){
+                nPeersCounter++;
+                peersVisited.add(auxPeer);
+            }
+            
+        }
+
+        if(nPeersCounter == totalPeers){
+            return true;
+        }
+
+        return false;
+    }
+
+
+    public void displayMessage(PriorityQueue<List<String>> messageQueue){
+        //System.out.println("List added to queue "+ messages.toString());
+        //timestamp.setTime(timestamp.getTime()+1000);
+
+        // System.out.println("\n---------server before PRIORITY QUEUE----------");
+        // printPriorityQueue(messageQueue);
+        // System.out.println("\n---------PRIORITY QUEUE----------\n");
+
+        while(allPeerExistInMessageQueue(messageQueue)){
+            List<String> auxList = (List<String>)messageQueue.poll();
+            String message = auxList.get(0);
+
+            if(!message.equals("bleat")){
+                String time = auxList.get(1);
+                String peerHost = auxList.get(2);
+                String peerPort = auxList.get(3);
+                String timeOfArrival = auxList.get(4);
+    
+                System.out.println("\nTime of arrival: "+ timeOfArrival);
                 System.out.println("Time from origin: "+time);
                 System.out.println("Message From("+peerHost+":"+peerPort+"): "+message);
             }
 
-            //Send Result List
-            objectOutputStream.writeObject(resultMessages);
-            clientSocket.close();
-        } catch(Exception e) {
-            e.printStackTrace();
         }
+
+        // System.out.println("\n---------server after PRIORITY QUEUE----------");
+        // printPriorityQueue(messageQueue);
+        // System.out.println("\n---------PRIORITY QUEUE----------\n");
+
+
+
+
+
+        // while(!messageQueue.isEmpty()){
+        //     List<String> auxList = (List<String>)messageQueue.poll();
+
+        //     String message = auxList.get(0);
+        //     String time = auxList.get(1);
+        //     String peerHost = auxList.get(2);
+        //     String peerPort = auxList.get(3);
+        //     String timeOfArrival = auxList.get(4);
+
+        //     System.out.println("\nTime of arrival: "+ timeOfArrival);
+        //     System.out.println("Time from origin: "+time);
+        //     System.out.println("Message From("+peerHost+":"+peerPort+"): "+message);
+
+        // }
     }
 
     /**
@@ -246,6 +460,18 @@ class Connection implements Runnable{
         });
     }
 
+    public void printPriorityQueue(PriorityQueue messageQueue){
+        PriorityQueue auxQueue = new PriorityQueue<List<String>>(new QueueComparator());
+        
+        if(!messageQueue.isEmpty()){
+            auxQueue.addAll(messageQueue);
+
+            while(!auxQueue.isEmpty()){
+                List<String> auxList = (List<String>)auxQueue.poll();
+                System.out.println(auxList.toString());
+            }
+        }
+    }
 
 }
 
@@ -255,30 +481,22 @@ class Client implements Runnable{
     Scanner scanner;
     int port;
     List<PeerHost> peerList;
+    PriorityQueue<List<String>> messageQueue;
 
-    public Client(String host, int port, Logger logger, List<PeerHost> peerList) throws Exception {
+    public Client(String host, int port, Logger logger, List<PeerHost> peerList, PriorityQueue<List<String>> messageQueue) throws Exception {
         this.host    = host;
         this.logger  = logger; 
         this.scanner = new Scanner(System.in);
         this.peerList = peerList;
         this.port = port;
+        this.messageQueue = messageQueue;
     }
 
     @Override 
     public void run() {
         try {
-            //logger.info("client: endpoint running ...\n");	
-            /*
-            * send messages such as:
-            *   - register ip port
-            *   - push ip port
-            *   - pull ip port
-            *   - pushpull ip port
-            * ip is the address of the server, port is the port where server is listening
-            */
             while (true) {
                 try {
-                    
                     System.out.print("$ ");
                     String command = scanner.next();
                     
@@ -306,14 +524,13 @@ class Client implements Runnable{
                         chatMessage = chatMessage + scanner.nextLine();
                         messages.clear();
                         messages.add(chatMessage);
-                        //System.out.println("GOT :" + message);
                         messageAll(messages, this.host, String.valueOf(this.port));
 
                     }
 
                     
                 } catch(Exception e) {
-                    //e.printStackTrace();
+                    e.printStackTrace();
                     System.out.println("Wrong Host/Port");
                 } 
             }
@@ -365,7 +582,20 @@ class Client implements Runnable{
 
     public void messageAll(List<String> messages, String server, String port){
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-        String holdTimeOfCreation = "";
+
+        /**
+         * Lamport Clock
+         */
+
+        timestamp.setTime(timestamp.getTime()+1000);
+
+        //Build Add time and peer info to message list
+        messages.add(timestamp.toString());
+        messages.add(server);
+        messages.add(port);
+        messages.add(timestamp.toString());
+        //Add To priority Queue
+        messageQueue.add(messages);
 
         for(PeerHost peer : peerList){ 
             try{
@@ -385,23 +615,8 @@ class Client implements Runnable{
                 // create a DataInputStream so we can read data from it.
                 ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
 
-                //Add timestamp to message
-                
-                holdTimeOfCreation = timestamp.toString();
-                messages.add(timestamp.toString());
-                messages.add(server);
-                messages.add(port);
-    
                 //Send Data
                 objectOutputStream.writeObject(messages);
-                
-                
-                List<String> resultMessages = new ArrayList<String>();
-    
-                try{            
-                    resultMessages = (List<String>)objectInputStream.readObject();
-                }catch(ClassNotFoundException e){ e.printStackTrace();}
-                
 
                 socket.close();
 
@@ -412,10 +627,77 @@ class Client implements Runnable{
             }
             
         }
+
+        //displayMessage(messageQueue);
+    }
+
+
+    public boolean allPeerExistInMessageQueue(PriorityQueue<List<String>> messageQueue){
+        int nPeersCounter=0;
+        PriorityQueue auxQueue = new PriorityQueue<List<String>>(new QueueComparator());
+        auxQueue.addAll(messageQueue);
+        List<PeerHost> peersVisited = new ArrayList<PeerHost>();
+
+        for(PeerHost peer: peerList){
+            while(!auxQueue.isEmpty()){
+                List<String> auxList = (List<String>)auxQueue.poll();
+                PeerHost auxPeer = new PeerHost(auxList.get(2), Integer.parseInt(auxList.get(3)));
+                if(peer.equals(auxPeer) && !peer.inList(peersVisited)){
+                    nPeersCounter++;
+                    break;
+                }
+            }
+        }
+
+        if(nPeersCounter == peerList.size()){
+            return true;
+        }
+
+        return false;
+    }
+
+
+    public void displayMessage(PriorityQueue<List<String>> messageQueue){
+        // System.out.println("List added to queue "+ messages.toString());
+        // TimeUnit.SECONDS.sleep(1);
         
-        System.out.println("\nTime of arrival: "+ timestamp.toString());
-        System.out.println("Time from origin: "+holdTimeOfCreation);
-        System.out.println("Message From("+server+":"+port+"): "+messages.get(0));
+
+
+        while(allPeerExistInMessageQueue(messageQueue)){
+            List<String> auxList = (List<String>)messageQueue.poll();
+            String message = auxList.get(0);
+
+            if(!message.equals("bleat")){
+                String time = auxList.get(1);
+                String peerHost = auxList.get(2);
+                String peerPort = auxList.get(3);
+                String timeOfArrival = auxList.get(4);
+    
+                System.out.println("\nTime of arrival: "+ timeOfArrival);
+                System.out.println("Time from origin: "+time);
+                System.out.println("Message From("+peerHost+":"+peerPort+"): "+message);
+            }
+
+        }
+
+        System.out.println("\n---------client PRIORITY QUEUE----------");
+        printPriorityQueue(messageQueue);
+        System.out.println("\n---------PRIORITY QUEUE----------\n");
+
+        // while(!messageQueue.isEmpty()){
+        //     List<String> auxList = (List<String>)messageQueue.poll();
+
+        //     String message = auxList.get(0);
+        //     String time = auxList.get(1);
+        //     String peerHost = auxList.get(2);
+        //     String peerPort = auxList.get(3);
+        //     String timeOfArrival = auxList.get(4);
+
+        //     System.out.println("\nTime of arrival: "+ timeOfArrival);
+        //     System.out.println("Time from origin: "+time);
+        //     System.out.println("Message From("+peerHost+":"+peerPort+"): "+message);
+
+        // }
     }
 
     /**
@@ -449,6 +731,18 @@ class Client implements Runnable{
                 //logger.info("Client: ERROR - Didn't register peer");
             }
         }        
+    }
+
+    public void printPriorityQueue(PriorityQueue messageQueue){
+        PriorityQueue auxQueue = new PriorityQueue<List<String>>(new QueueComparator());
+        if(!messageQueue.isEmpty()){
+            auxQueue.addAll(messageQueue);
+
+            while(!auxQueue.isEmpty()){
+                List<String> auxList = (List<String>)auxQueue.poll();
+                System.out.println(auxList.toString());
+            }
+        }
     }
 
     public void printPeerHostList(Logger logger){
