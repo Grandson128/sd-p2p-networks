@@ -79,21 +79,8 @@ class PeerHost{
 class QueueComparator implements Comparator<List<String>>{
 
     public int compare(List<String> list1, List<String> list2){
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss.SSS");
-        Date parsedTimeList1 = null;
-        Date parsedTimeList2 = null;
-
-        try{
-            parsedTimeList1 = dateFormat.parse(list1.get(1));
-            parsedTimeList2 = dateFormat.parse(list2.get(1));
-        }catch(Exception e){
-            e.printStackTrace();
-        }finally{
-
-        }
-
-        Timestamp timeList1 = new Timestamp(parsedTimeList1.getTime());
-        Timestamp timeList2 = new Timestamp(parsedTimeList2.getTime());
+        Timestamp timeList1 = Timestamp.valueOf(list1.get(1));
+        Timestamp timeList2 = Timestamp.valueOf(list2.get(1));
 
         if(timeList1.before(timeList2)){
             return -1;
@@ -344,6 +331,11 @@ class Connection implements Runnable{
     public boolean allPeerExistInMessageQueue(PriorityQueue<List<String>> messageQueue){
         int nPeersCounter=0;
         int totalPeers = peerList.size()+1;
+
+        if(messageQueue.size() == 0){
+            return false;
+        }
+
         PriorityQueue auxQueue = new PriorityQueue<List<String>>(new QueueComparator());
         auxQueue.addAll(messageQueue);
         List<PeerHost> peersVisited = new ArrayList<PeerHost>();
