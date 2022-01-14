@@ -347,6 +347,14 @@ class Connection implements Runnable{
         }
 
         PriorityQueue auxQueue = new PriorityQueue<List<String>>(new QueueComparator());
+        /**
+         * Cheeky way to avoid Concurrenc Exceptions :(
+         */
+        try {
+            Thread.sleep(new Random().nextInt(150-50)+50);
+        } catch (Exception e) {
+            //TODO: handle exception
+        }
         auxQueue.addAll(messageQueue);
         List<PeerHost> peersVisited = new ArrayList<PeerHost>();
 
