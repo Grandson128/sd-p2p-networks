@@ -266,18 +266,25 @@ class Connection implements Runnable{
                  * Send Bleats
                  */
                 if(!listOfMessages.get(0).equals("bleat")){
-                    for(PeerHost peer: peerList){
-                        sendBleat(peer.hostName, String.valueOf(peer.hostPort), bleatTime.toString());
-                    }
+                    // System.out.println("Got message: "+listOfMessages.toString());
+                    sendBleat(bleatTime.toString());
+                    
                 }else{
                     System.out.println("Got bleat from: "+listOfMessages.get(3));
                 }
                 
                 //Add time of arrival
-                listOfMessages.add(bleatTime.toString());
+                listOfMessages.add(timestamp.toString());
 
                 //Add message to priority queue
-                messageQueue.add(listOfMessages);
+                List<String> messageListToQueue = new ArrayList<String>();
+                messageListToQueue.addAll(listOfMessages);
+                
+                messageQueue.add(messageListToQueue);
+
+                // System.out.println("\n---------server PRIORITY QUEUE----------");
+                // printPriorityQueue(messageQueue);
+                // System.out.println("\n---------PRIORITY QUEUE----------\n");
 
                 //Handle message order
                 displayMessage(messageQueue);
@@ -291,33 +298,29 @@ class Connection implements Runnable{
     }
 
     public Timestamp stringToTimestamp(String time){
-        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss.SSS");
-        Date parsedTime= null;
-    
-        try{
-            parsedTime = dateFormat.parse(time);
-        }catch(Exception e){
-            e.printStackTrace();
-        }finally{
-
-        }
-        Timestamp goodTime = new Timestamp(parsedTime.getTime());
+        Timestamp goodTime = Timestamp.valueOf(time);
         return goodTime;
     }
 
-    public void sendBleat(String server, String port, String bleatTime){
+    public void sendBleat(String bleatTime){
         List<String> bleat = new ArrayList<String>();
         bleat.add("bleat");
         bleat.add(bleatTime);
         bleat.add(this.host);
         bleat.add(String.valueOf(this.port));
-
         //Add own bleat
         messageQueue.add(bleat);
 
-        for(PeerHost peer : peerList){ 
+        for(PeerHost peer : this.peerList){ 
+            System.out.println(this.port+"sent bleat to: "+peer.hostPort);
             try{
-                /* 
+                /**
+                 * create bleat
+                 */
+                List<String> bleatToSend = new ArrayList<String>();
+                bleatToSend.addAll(bleat);
+                
+                        /* 
                 * make connection
                 */
                 Socket socket  = new Socket(InetAddress.getByName(peer.hostName), peer.hostPort);
@@ -326,7 +329,7 @@ class Connection implements Runnable{
                 // create an object output stream from the output stream so we can send an object through it
                 ObjectOutputStream objectOutputStream = new ObjectOutputStream(outputStream);
                 //Send Bleat
-                objectOutputStream.writeObject(bleat);
+                objectOutputStream.writeObject(bleatToSend);
                 socket.close();
             }catch(IOException e){
                 e.printStackTrace();
@@ -340,7 +343,6 @@ class Connection implements Runnable{
         PriorityQueue auxQueue = new PriorityQueue<List<String>>(new QueueComparator());
         auxQueue.addAll(messageQueue);
         List<PeerHost> peersVisited = new ArrayList<PeerHost>();
-
 
         for(PeerHost peer : peerList){
             // System.out.println("FROM PEER LIST: "+peer.hostPort+ " "+peer.hostName);
@@ -412,25 +414,6 @@ class Connection implements Runnable{
         // System.out.println("\n---------server after PRIORITY QUEUE----------");
         // printPriorityQueue(messageQueue);
         // System.out.println("\n---------PRIORITY QUEUE----------\n");
-
-
-
-
-
-        // while(!messageQueue.isEmpty()){
-        //     List<String> auxList = (List<String>)messageQueue.poll();
-
-        //     String message = auxList.get(0);
-        //     String time = auxList.get(1);
-        //     String peerHost = auxList.get(2);
-        //     String peerPort = auxList.get(3);
-        //     String timeOfArrival = auxList.get(4);
-
-        //     System.out.println("\nTime of arrival: "+ timeOfArrival);
-        //     System.out.println("Time from origin: "+time);
-        //     System.out.println("Message From("+peerHost+":"+peerPort+"): "+message);
-
-        // }
     }
 
     /**
@@ -440,7 +423,7 @@ class Connection implements Runnable{
     public int register(String targetPeerHost, int port, Logger logger){
         PeerHost newPeer = new PeerHost(targetPeerHost, port);
 
-        if(!newPeer.inList(peerList)){
+        if(!newPeer.inList(peerList) && !newPeer.hostName.equals(this.host) && newPeer.hostPort != this.port){
             peerList.add(newPeer);
             //logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
             //logger.info("Server: Current Peer Ip Table: ");
@@ -497,7 +480,7 @@ class Client implements Runnable{
         try {
             while (true) {
                 try {
-                    System.out.print("$ ");
+                    //System.out.print("$ ");
                     String command = scanner.next();
                     
                     List<String> messages = new ArrayList<String>();
@@ -593,12 +576,20 @@ class Client implements Runnable{
         messages.add(timestamp.toString());
         messages.add(server);
         messages.add(port);
-        messages.add(timestamp.toString());
+        //messages.add(timestamp.toString());
         //Add To priority Queue
         messageQueue.add(messages);
 
         for(PeerHost peer : peerList){ 
             try{
+
+                /**
+                 * New message object for each peer
+                 */
+
+                List<String> messagesToSend = new ArrayList<String>();
+                messagesToSend.addAll(messages);
+
                 /* 
                 * make connection
                 */
@@ -616,7 +607,7 @@ class Client implements Runnable{
                 ObjectInputStream objectInputStream = new ObjectInputStream(inputStream);
 
                 //Send Data
-                objectOutputStream.writeObject(messages);
+                objectOutputStream.writeObject(messagesToSend);
 
                 socket.close();
 
