@@ -424,7 +424,7 @@ class Connection implements Runnable{
         PeerHost newPeer = new PeerHost(targetPeerHost, port);
 
         System.out.println("Server: Peer to add: "+targetPeerHost+" port: "+port);
-        System.out.println("Server: Host: "+targetPeerHost+" Port: "+port);
+        System.out.println("Server: Host: "+this.host+" Port: "+this.port);
 
 
         if(!newPeer.inList(peerList) && !newPeer.hostName.equals(this.host) && newPeer.hostPort != this.port){
@@ -624,75 +624,6 @@ class Client implements Runnable{
         }
 
         //displayMessage(messageQueue);
-    }
-
-
-    public boolean allPeerExistInMessageQueue(PriorityQueue<List<String>> messageQueue){
-        int nPeersCounter=0;
-        PriorityQueue auxQueue = new PriorityQueue<List<String>>(new QueueComparator());
-        auxQueue.addAll(messageQueue);
-        List<PeerHost> peersVisited = new ArrayList<PeerHost>();
-
-        for(PeerHost peer: peerList){
-            while(!auxQueue.isEmpty()){
-                List<String> auxList = (List<String>)auxQueue.poll();
-                PeerHost auxPeer = new PeerHost(auxList.get(2), Integer.parseInt(auxList.get(3)));
-                if(peer.equals(auxPeer) && !peer.inList(peersVisited)){
-                    nPeersCounter++;
-                    break;
-                }
-            }
-        }
-
-        if(nPeersCounter == peerList.size()){
-            return true;
-        }
-
-        return false;
-    }
-
-
-    public void displayMessage(PriorityQueue<List<String>> messageQueue){
-        // System.out.println("List added to queue "+ messages.toString());
-        // TimeUnit.SECONDS.sleep(1);
-        
-
-
-        while(allPeerExistInMessageQueue(messageQueue)){
-            List<String> auxList = (List<String>)messageQueue.poll();
-            String message = auxList.get(0);
-
-            if(!message.equals("bleat")){
-                String time = auxList.get(1);
-                String peerHost = auxList.get(2);
-                String peerPort = auxList.get(3);
-                String timeOfArrival = auxList.get(4);
-    
-                System.out.println("\nTime of arrival: "+ timeOfArrival);
-                System.out.println("Time from origin: "+time);
-                System.out.println("Message From("+peerHost+":"+peerPort+"): "+message);
-            }
-
-        }
-
-        System.out.println("\n---------client PRIORITY QUEUE----------");
-        printPriorityQueue(messageQueue);
-        System.out.println("\n---------PRIORITY QUEUE----------\n");
-
-        // while(!messageQueue.isEmpty()){
-        //     List<String> auxList = (List<String>)messageQueue.poll();
-
-        //     String message = auxList.get(0);
-        //     String time = auxList.get(1);
-        //     String peerHost = auxList.get(2);
-        //     String peerPort = auxList.get(3);
-        //     String timeOfArrival = auxList.get(4);
-
-        //     System.out.println("\nTime of arrival: "+ timeOfArrival);
-        //     System.out.println("Time from origin: "+time);
-        //     System.out.println("Message From("+peerHost+":"+peerPort+"): "+message);
-
-        // }
     }
 
     /**
