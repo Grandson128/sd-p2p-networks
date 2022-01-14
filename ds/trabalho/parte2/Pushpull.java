@@ -302,16 +302,25 @@ class Connection implements Runnable{
      */
     public int register(String targetPeerHost, int port, Logger logger){
         PeerHost newPeer = new PeerHost(targetPeerHost, port);
+        PeerHost thisPeer = new PeerHost(this.host, this.port);
 
-        if(!newPeer.inList(peerList)){
+        if(!newPeer.inList(peerList) && newPeer.equals(thisPeer) && newPeer.hostPort != this.port){
             peerList.add(newPeer);
-            // logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
-            // logger.info("Server: Current Peer Ip Table: ");
+            //logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
+            //logger.info("Server: Current Peer Ip Table: ");
+            System.out.println("Server: Current Peer Ip Table: ");
+            printPeerHostList(logger);
+            return 1;
+        }else if(!newPeer.inList(peerList) && !newPeer.equals(thisPeer) && newPeer.hostPort == this.port){
+            peerList.add(newPeer);
+            //logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
+            //logger.info("Server: Current Peer Ip Table: ");
             System.out.println("Server: Current Peer Ip Table: ");
             printPeerHostList(logger);
             return 1;
         }else{
-            logger.info("Server: ERROR - Didn't register given peer, already exists");
+            //logger.info("Server: ERROR - Didn't register given peer, already exists");
+            System.out.println("Server: ERROR - Didn't register given peer, already exists");
             return 0;
         }
     }
