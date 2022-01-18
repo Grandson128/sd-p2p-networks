@@ -58,6 +58,21 @@ class PeerHost{
         return false;
     }
 
+
+    public boolean equalHost(PeerHost peer){
+        try{
+            if(InetAddress.getByName(peer.hostName).equals(InetAddress.getByName(this.hostName))){
+                return true;
+            }
+            //return false;
+        }catch(UnknownHostException e){
+            e.printStackTrace();
+        }finally{
+            
+        }
+        return false;
+    }
+
     public boolean inList(List<PeerHost> peers){
         for(PeerHost peer : peers){ 
             if(peer.equals(this)){
@@ -304,7 +319,12 @@ class Connection implements Runnable{
         PeerHost newPeer = new PeerHost(targetPeerHost, port);
         PeerHost thisPeer = new PeerHost(this.host, this.port);
 
-        if(!newPeer.inList(peerList) && newPeer.equals(thisPeer) && newPeer.hostPort != this.port){
+        System.out.println("new peer: "+newPeer.hostName + " Port: "+ newPeer.hostPort);
+        System.out.println("this peer: "+thisPeer.hostName + " Port: "+ thisPeer.hostPort);
+        
+
+
+        if(!newPeer.inList(peerList) && newPeer.equalHost(thisPeer) && newPeer.hostPort != this.port){
             peerList.add(newPeer);
             //logger.info("Server: added new peer --> Host: "+targetPeerHost+" Port: "+String.valueOf(port));
             //logger.info("Server: Current Peer Ip Table: ");
